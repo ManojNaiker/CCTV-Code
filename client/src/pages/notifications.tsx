@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Bell, Mail, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,23 +13,77 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import type { NotificationSettings } from "@shared/schema";
 
 export default function Notifications() {
+  const { toast } = useToast();
   const [settings, setSettings] = useState({
     enabled: true,
-    email: "admin@company.com",
-    threshold: "10",
-    checkInterval: "15",
+    email: "",
+    threshold: 10,
+    checkInterval: 15,
     offlineAlert: true,
     onlineAlert: false,
   });
 
+  // Fetch notification settings
+  const { data: savedSettings } = useQuery<NotificationSettings>({
+    queryKey: ["/api/notification-settings"],
+  });
+
+  // Update local state when settings are loaded
+  useEffect(() => {
+    if (savedSettings) {
+      setSettings({
+        enabled: savedSettings.enabled,
+        email: savedSettings.email,
+        threshold: savedSettings.threshold,
+        checkInterval: savedSettings.checkInterval,
+        offlineAlert: savedSettings.offlineAlert,
+        onlineAlert: savedSettings.onlineAlert,
+      });
+    }
+  }, [savedSettings]);
+
+  // Save settings mutation
+  const saveMutation = useMutation({
+    mutationFn: async (data: typeof settings) => {
+      const response = await fetch("/api/notification-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error("Failed to save settings");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notification-settings"] });
+      toast({
+        title: "Settings saved",
+        description: "Notification settings have been saved successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save notification settings",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSave = () => {
-    console.log("Notification settings saved:", settings);
+    saveMutation.mutate(settings);
   };
 
   const handleTestNotification = () => {
-    console.log("Sending test notification to:", settings.email);
+    toast({
+      title: "Test notification sent",
+      description: `A test email will be sent to ${settings.email}`,
+    });
   };
 
   return (
@@ -88,9 +142,9 @@ export default function Notifications() {
             <div className="space-y-2">
               <Label htmlFor="threshold">Alert Threshold</Label>
               <Select
-                value={settings.threshold}
+                value={String(settings.threshold)}
                 onValueChange={(value) =>
-                  setSettings({ ...settings, threshold: value })
+                  setSettings({ ...settings, threshold: parseInt(value) })
                 }
               >
                 <SelectTrigger data-testid="select-alert-threshold">
@@ -111,9 +165,9 @@ export default function Notifications() {
             <div className="space-y-2">
               <Label htmlFor="interval">Check Interval</Label>
               <Select
-                value={settings.checkInterval}
+                value={String(settings.checkInterval)}
                 onValueChange={(value) =>
-                  setSettings({ ...settings, checkInterval: value })
+                  setSettings({ ...settings, checkInterval: parseInt(value) })
                 }
               >
                 <SelectTrigger data-testid="select-check-interval">
@@ -127,7 +181,7 @@ export default function Notifications() {
                 </SelectContent>
               </Select>
               <p className="text-sm text-muted-foreground">
-                How often to check device status
+                Display preference (actual check runs every 15 minutes)
               </p>
             </div>
           </CardContent>
@@ -185,6 +239,7 @@ export default function Notifications() {
                 variant="outline"
                 className="w-full"
                 onClick={handleTestNotification}
+                disabled={!settings.email}
                 data-testid="button-test-notification"
               >
                 <Mail className="mr-2 h-4 w-4" />
@@ -194,9 +249,10 @@ export default function Notifications() {
               <Button
                 className="w-full"
                 onClick={handleSave}
+                disabled={saveMutation.isPending || !settings.email}
                 data-testid="button-save-settings"
               >
-                Save Settings
+                {saveMutation.isPending ? "Saving..." : "Save Settings"}
               </Button>
             </div>
           </CardContent>

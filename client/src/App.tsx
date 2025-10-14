@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import Dashboard from "@/pages/dashboard";
+import HikConnectSettings from "@/pages/hik-connect-settings";
 import Branches from "@/pages/branches";
 import DeviceMapping from "@/pages/device-mapping";
 import Notifications from "@/pages/notifications";
@@ -17,6 +18,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/hik-connect" component={HikConnectSettings} />
       <Route path="/branches" component={Branches} />
       <Route path="/device-mapping" component={DeviceMapping} />
       <Route path="/notifications" component={Notifications} />

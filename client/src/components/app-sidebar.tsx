@@ -1,4 +1,4 @@
-import { LayoutDashboard, Building2, MapPin, Bell } from "lucide-react";
+import { LayoutDashboard, Building2, MapPin, Bell, Settings } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -17,6 +17,12 @@ const menuItems = [
     url: "/",
     icon: LayoutDashboard,
     testId: "link-dashboard",
+  },
+  {
+    title: "Hik-Connect Settings",
+    url: "/hik-connect",
+    icon: Settings,
+    testId: "link-hik-connect",
   },
   {
     title: "Branch List",
