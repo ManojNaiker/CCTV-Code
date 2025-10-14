@@ -1,0 +1,207 @@
+import { useState } from "react";
+import { Bell, Mail, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+export default function Notifications() {
+  const [settings, setSettings] = useState({
+    enabled: true,
+    email: "admin@company.com",
+    threshold: "10",
+    checkInterval: "15",
+    offlineAlert: true,
+    onlineAlert: false,
+  });
+
+  const handleSave = () => {
+    console.log("Notification settings saved:", settings);
+  };
+
+  const handleTestNotification = () => {
+    console.log("Sending test notification to:", settings.email);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">Notification Settings</h1>
+        <p className="text-muted-foreground">
+          Configure alerts for device status changes
+        </p>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              Alert Configuration
+            </CardTitle>
+            <CardDescription>
+              Set up when and how you want to be notified
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Enable Notifications</Label>
+                <p className="text-sm text-muted-foreground">
+                  Receive alerts for device status changes
+                </p>
+              </div>
+              <Switch
+                checked={settings.enabled}
+                onCheckedChange={(checked) =>
+                  setSettings({ ...settings, enabled: checked })
+                }
+                data-testid="switch-enable-notifications"
+              />
+            </div>
+
+            <Separator />
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                value={settings.email}
+                onChange={(e) =>
+                  setSettings({ ...settings, email: e.target.value })
+                }
+                data-testid="input-notification-email"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="threshold">Alert Threshold</Label>
+              <Select
+                value={settings.threshold}
+                onValueChange={(value) =>
+                  setSettings({ ...settings, threshold: value })
+                }
+              >
+                <SelectTrigger data-testid="select-alert-threshold">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5+ devices offline</SelectItem>
+                  <SelectItem value="10">10+ devices offline</SelectItem>
+                  <SelectItem value="20">20+ devices offline</SelectItem>
+                  <SelectItem value="50">50+ devices offline</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
+                Send alert when this many devices go offline
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="interval">Check Interval</Label>
+              <Select
+                value={settings.checkInterval}
+                onValueChange={(value) =>
+                  setSettings({ ...settings, checkInterval: value })
+                }
+              >
+                <SelectTrigger data-testid="select-check-interval">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">Every 5 minutes</SelectItem>
+                  <SelectItem value="15">Every 15 minutes</SelectItem>
+                  <SelectItem value="30">Every 30 minutes</SelectItem>
+                  <SelectItem value="60">Every hour</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
+                How often to check device status
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              Alert Types
+            </CardTitle>
+            <CardDescription>
+              Choose which events trigger notifications
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Device Offline Alerts</Label>
+                <p className="text-sm text-muted-foreground">
+                  Notify when devices go offline
+                </p>
+              </div>
+              <Switch
+                checked={settings.offlineAlert}
+                onCheckedChange={(checked) =>
+                  setSettings({ ...settings, offlineAlert: checked })
+                }
+                data-testid="switch-offline-alerts"
+              />
+            </div>
+
+            <Separator />
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Device Online Alerts</Label>
+                <p className="text-sm text-muted-foreground">
+                  Notify when offline devices come back online
+                </p>
+              </div>
+              <Switch
+                checked={settings.onlineAlert}
+                onCheckedChange={(checked) =>
+                  setSettings({ ...settings, onlineAlert: checked })
+                }
+                data-testid="switch-online-alerts"
+              />
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3 pt-2">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleTestNotification}
+                data-testid="button-test-notification"
+              >
+                <Mail className="mr-2 h-4 w-4" />
+                Send Test Notification
+              </Button>
+
+              <Button
+                className="w-full"
+                onClick={handleSave}
+                data-testid="button-save-settings"
+              >
+                Save Settings
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
