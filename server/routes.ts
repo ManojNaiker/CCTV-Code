@@ -210,6 +210,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Chart statistics endpoint
+  app.get("/api/stats/chart-data", async (req, res) => {
+    try {
+      const devices = await storage.getDevices();
+      const branches = await storage.getBranches();
+
+      // Calculate overall status distribution
+      const online = devices.filter(d => d.status === "online").length;
+      const offline = devices.filter(d => d.status === "offline").length;
+      const unknown = devices.filter(d => d.status === "unknown").length;
+
+      // Calculate state-wise distribution
+      const stateMap = new Map<string, { online: number; offline: number; unknown: number }>();
+      
+      devices.forEach((device) => {
+        const branch = branches.find((b) => b.id === device.branchId);
+        const state = branch?.state || "Unassigned";
+        
+        if (!stateMap.has(state)) {
+          stateMap.set(state, { online: 0, offline: 0, unknown: 0 });
+        }
+        
+        const stats = stateMap.get(state)!;
+        if (device.status === "online") {
+          stats.online++;
+        } else if (device.status === "offline") {
+          stats.offline++;
+        } else {
+          stats.unknown++;
+        }
+      });
+
+      const stateWiseData = Array.from(stateMap.entries()).map(([state, stats]) => ({
+        state,
+        ...stats,
+      }));
+
+      res.json({
+        deviceStatus: [
+          { name: "Online", value: online },
+          { name: "Offline", value: offline },
+        ],
+        stateWise: stateWiseData,
+        summary: {
+          total: devices.length,
+          online,
+          offline,
+          unknown,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch chart data" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
