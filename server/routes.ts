@@ -40,25 +40,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sync devices from Hik-Connect
   app.post("/api/hik-connect/sync", async (req, res) => {
     try {
+      console.log("\n[SYNC] ========== Device Sync Started ==========");
+      console.log("[SYNC] Step 1: Fetching credentials from storage...");
+      
       const credentials = await storage.getHikConnectCredentials();
       if (!credentials) {
+        console.error("[SYNC] ERROR: No credentials found in storage");
         return res.status(400).json({ error: "No credentials configured" });
       }
 
+      console.log("[SYNC] Credentials found:");
+      console.log("[SYNC] - Username:", credentials.username);
+      console.log("[SYNC] - Has API Key:", !!credentials.apiKey);
+      console.log("[SYNC] - Has API Secret:", !!credentials.apiSecret);
+      
+      console.log("[SYNC] Step 2: Creating HikConnectClient...");
       const hikClient = new HikConnectClient(
         credentials.username,
         credentials.password,
         credentials.apiKey || undefined,
         credentials.apiSecret || undefined
       );
+      console.log("[SYNC] HikConnectClient created successfully");
 
+      console.log("[SYNC] Step 3: Fetching devices from Hik-Connect API...");
       const hikDevices = await hikClient.getDevices();
+      console.log("[SYNC] Received", hikDevices.length, "devices from Hik-Connect");
+      
       let syncedCount = 0;
+      console.log("[SYNC] Step 4: Processing and saving devices to database...");
 
       for (const hikDevice of hikDevices) {
+        console.log(`[SYNC] Processing device: ${hikDevice.deviceName} (${hikDevice.deviceId})`);
+        
         const existingDevice = await storage.getDeviceByHikId(hikDevice.deviceId);
         
         if (existingDevice) {
+          console.log(`[SYNC] - Device exists, updating: ${existingDevice.id}`);
           await storage.updateDevice(existingDevice.id, {
             name: hikDevice.deviceName,
             serial: hikDevice.deviceSerial,
@@ -67,7 +85,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status: hikDevice.status === 1 ? "online" : "offline",
             lastSeen: new Date(),
           });
+          console.log(`[SYNC] - Device updated successfully`);
         } else {
+          console.log(`[SYNC] - New device, creating in database...`);
           await storage.createDevice({
             hikDeviceId: hikDevice.deviceId,
             name: hikDevice.deviceName,
@@ -77,14 +97,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status: hikDevice.status === 1 ? "online" : "offline",
             lastSeen: new Date(),
           });
+          console.log(`[SYNC] - Device created successfully`);
         }
         syncedCount++;
       }
 
+      console.log("[SYNC] Step 5: Updating last sync timestamp...");
       await storage.updateLastSync(credentials.id);
+      console.log("[SYNC] Last sync timestamp updated");
+
+      console.log("[SYNC] ========== Sync Completed Successfully ==========");
+      console.log(`[SYNC] Total devices synced: ${syncedCount}\n`);
 
       res.json({ success: true, count: syncedCount });
     } catch (error: any) {
+      console.error("\n[SYNC] ========== Sync Failed ==========");
+      console.error("[SYNC] Error type:", error.constructor.name);
+      console.error("[SYNC] Error message:", error.message);
+      console.error("[SYNC] Error stack:", error.stack);
+      console.error("[SYNC] =====================================\n");
+      
       res.status(500).json({ error: error.message || "Failed to sync devices" });
     }
   });
