@@ -43,32 +43,54 @@ export class HikConnectClient {
 
   async login(): Promise<boolean> {
     try {
+      console.log("[HikConnect] Attempting login...");
+      console.log("[HikConnect] Username:", this.username);
+      console.log("[HikConnect] API Base URL:", this.axios.defaults.baseURL);
+      console.log("[HikConnect] Login endpoint: /hcc/auth/security/v1/ticket/login");
+      
       const response = await this.axios.post("/hcc/auth/security/v1/ticket/login", {
         account: this.username,
         password: this.password,
       });
 
+      console.log("[HikConnect] Login response status:", response.status);
+      console.log("[HikConnect] Login response data:", JSON.stringify(response.data, null, 2));
+
       if (response.data && response.data.ticket) {
         this.sessionToken = response.data.ticket;
+        console.log("[HikConnect] Login successful, session token obtained");
         return true;
       }
 
+      console.log("[HikConnect] Login failed: No ticket in response");
       return false;
-    } catch (error) {
-      console.error("Hik-Connect login failed:", error);
+    } catch (error: any) {
+      console.error("[HikConnect] Login failed with error:");
+      console.error("[HikConnect] Error message:", error.message);
+      console.error("[HikConnect] Error response status:", error.response?.status);
+      console.error("[HikConnect] Error response data:", JSON.stringify(error.response?.data, null, 2));
+      console.error("[HikConnect] Full error:", error);
       return false;
     }
   }
 
   async getDevices(): Promise<HikConnectDevice[]> {
+    console.log("[HikConnect] getDevices() called");
+    
     if (!this.sessionToken) {
+      console.log("[HikConnect] No session token found, attempting login first...");
       const loginSuccess = await this.login();
       if (!loginSuccess) {
+        console.error("[HikConnect] Login failed, cannot fetch devices");
         throw new Error("Failed to authenticate with Hik-Connect");
       }
     }
 
     try {
+      console.log("[HikConnect] Fetching devices from API...");
+      console.log("[HikConnect] Request URL: /api/v1/devices");
+      console.log("[HikConnect] Session token:", this.sessionToken?.substring(0, 20) + "...");
+      
       // Try to fetch devices from the API
       const response = await this.axios.get("/api/v1/devices", {
         headers: {
@@ -76,8 +98,11 @@ export class HikConnectClient {
         },
       });
 
+      console.log("[HikConnect] Devices API response status:", response.status);
+      console.log("[HikConnect] Devices API response data:", JSON.stringify(response.data, null, 2));
+
       if (response.data && Array.isArray(response.data)) {
-        return response.data.map((device: any) => ({
+        const devices = response.data.map((device: any) => ({
           deviceId: device.deviceId || device.id,
           deviceName: device.deviceName || device.name,
           deviceSerial: device.deviceSerial || device.serial,
@@ -85,12 +110,20 @@ export class HikConnectClient {
           version: device.version,
           status: device.status,
         }));
+        console.log("[HikConnect] Successfully mapped", devices.length, "devices");
+        return devices;
       }
 
+      console.log("[HikConnect] No devices found in response");
       return [];
-    } catch (error) {
-      console.error("Failed to fetch devices from Hik-Connect:", error);
+    } catch (error: any) {
+      console.error("[HikConnect] Failed to fetch devices:");
+      console.error("[HikConnect] Error message:", error.message);
+      console.error("[HikConnect] Error response status:", error.response?.status);
+      console.error("[HikConnect] Error response data:", JSON.stringify(error.response?.data, null, 2));
+      console.error("[HikConnect] Full error:", error);
       
+      console.log("[HikConnect] Returning mock data for testing purposes");
       // Return mock data for testing purposes when API is not available
       return [
         {
