@@ -1,0 +1,30 @@
+curl --location 'https://www.hik-connect.com/v3/users/login/v6' \
+--header 'accept: application/json, text/plain, */*' \
+--header 'accept-language: en-US,en;q=0.9' \
+--header 'appid: Hik-Connect-Portal' \
+--header 'cache-control: max-age=0' \
+--header 'clientsource: 0' \
+--header 'clienttype: 48' \
+--header 'content-type: application/x-www-form-urlencoded' \
+--header 'customno: 1000002' \
+--header 'email;' \
+--header 'featurecode: f0778a92eb09c76139747987a4b83cf8' \
+--header 'if-modified-since: 0' \
+--header 'origin: https://www.hik-connect.com' \
+--header 'phone;' \
+--header 'priority: u=1, i' \
+--header 'referer: https://www.hik-connect.com/views/login/index.html' \
+--header 'sec-ch-ua: "Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"' \
+--header 'sec-ch-ua-mobile: ?0' \
+--header 'sec-ch-ua-platform: "Windows"' \
+--header 'sec-fetch-dest: empty' \
+--header 'sec-fetch-mode: cors' \
+--header 'sec-fetch-site: same-origin' \
+--header 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36' \
+--header 'withcredentials: true' \
+--header 'Cookie: gdp_user_id=gioenc-4g3gc45g%2C0423%2C59g5%2Ca2b2%2C5bcb81d1dc6a; 9687f7b87d680e6b_gdp_session_id=53deeb97-fc62-493a-b60c-3f8ba7fdd99f; 9687f7b87d680e6b_gdp_session_id_sent=53deeb97-fc62-493a-b60c-3f8ba7fdd99f; 9687f7b87d680e6b_gdp_sequence_ids={%22globalKey%22:25%2C%22VISIT%22:12%2C%22PAGE%22:14}; jumpCountry=244; _gid=GA1.2.663135411.1760592958; _ga=GA1.1.1385010037.1758286367; _ga_08N4NGSDWG=GS2.1.s1760592957$o9$g1$t1760593494$j60$l0$h0' \
+--data-urlencode 'checkSign=false' \
+--data-urlencode 'cuName=d2Vi' \
+--data-urlencode 'account=light_rajasthan' \
+--data-urlencode 'password=tz7jHgGWWbEdAKvYbl78XbkAdyHoto64zmGwLmamczEbZWYtrZn8ibbAOdJ8kObrdwz8K8ac8+tUMYPMBx4ezUWaINzWYzhjN8VbK9J1P39ievtGtRPQIy73b9xnSxs1XYQLjCYFogC8gD9JgA4iPLXw7JFxf1ZfWB1OMj5s4oMn+cq1KN5d3TiVAEM3IWTS5ewWE8XnIf/QVhvoLmQYoHCyGV2m9KhrWJG1FRKxTxjROsAT0YHWscm+WGuG6bBjNjZQzeg/HN9ppfhCXgUcJeWZzCZSVIr1h3l/BWArnOpmPVVHhbEzIILgJ4GY/Bz/MKt0QLh4dooojI0apkLROg==' \
+--data-urlencode 'imageCode='
