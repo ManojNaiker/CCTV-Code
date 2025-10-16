@@ -10,6 +10,10 @@ export const hikConnectCredentials = pgTable("hik_connect_credentials", {
   password: text("password").notNull(),
   apiKey: text("api_key"),
   apiSecret: text("api_secret"),
+  sessionId: text("session_id"),
+  featureCode: text("feature_code"),
+  customNo: text("custom_no"),
+  sessionExpiry: timestamp("session_expiry"),
   lastSync: timestamp("last_sync"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

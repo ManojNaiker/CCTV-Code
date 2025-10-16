@@ -58,14 +58,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hikClient = new HikConnectClient(
         credentials.username,
         credentials.password,
-        credentials.apiKey || undefined,
-        credentials.apiSecret || undefined
+        credentials.sessionId || undefined,
+        credentials.featureCode || undefined,
+        credentials.customNo || undefined,
+        credentials.sessionExpiry || undefined
       );
       console.log("[SYNC] HikConnectClient created successfully");
 
       console.log("[SYNC] Step 3: Fetching devices from Hik-Connect API...");
       const hikDevices = await hikClient.getDevices();
       console.log("[SYNC] Received", hikDevices.length, "devices from Hik-Connect");
+      
+      if (hikDevices.length === 0) {
+        console.log("[SYNC] WARNING: No devices returned");
+        console.log("[SYNC] The Hik-Connect API requires device serial numbers to fetch device information.");
+        console.log("[SYNC] Please use one of the following endpoints instead:");
+        console.log("[SYNC] - POST /api/branches/create-with-devices (create branch with devices)");
+        console.log("[SYNC] - POST /api/branches/:id/sync-devices (sync devices to existing branch)");
+        
+        return res.status(400).json({ 
+          error: "The Hik-Connect API requires serial numbers to fetch devices. Please use POST /api/branches/create-with-devices or POST /api/branches/:id/sync-devices with serial numbers instead.",
+          hint: "Provide an array of device serial numbers in the request body.",
+        });
+      }
       
       let syncedCount = 0;
       console.log("[SYNC] Step 4: Processing and saving devices to database...");
@@ -143,7 +158,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Branches Routes
+  // Branches/Stations Routes
   app.get("/api/branches", async (req, res) => {
     try {
       const branches = await storage.getBranches();
@@ -160,6 +175,162 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(branch);
     } catch (error) {
       res.status(400).json({ error: "Invalid branch data" });
+    }
+  });
+
+  app.post("/api/branches/create-with-devices", async (req, res) => {
+    try {
+      const { branch, serialNumbers } = req.body;
+      
+      const validated = insertBranchSchema.parse(branch);
+      const createdBranch = await storage.createBranch(validated);
+      
+      if (serialNumbers && serialNumbers.length > 0) {
+        const credentials = await storage.getHikConnectCredentials();
+        if (!credentials) {
+          return res.status(400).json({ 
+            error: "No credentials configured. Please configure Hik-Connect credentials first.",
+            branch: createdBranch 
+          });
+        }
+
+        const hikClient = new HikConnectClient(
+          credentials.username,
+          credentials.password,
+          credentials.sessionId || undefined,
+          credentials.featureCode || undefined,
+          credentials.customNo || undefined,
+          credentials.sessionExpiry || undefined
+        );
+
+        const hikDevices = await hikClient.getDevicesBySerialNumbers(serialNumbers);
+        
+        const sessionInfo = hikClient.getSessionInfo();
+        if (sessionInfo.sessionId) {
+          await storage.updateSession(
+            credentials.id,
+            sessionInfo.sessionId,
+            sessionInfo.featureCode,
+            sessionInfo.customNo,
+            sessionInfo.sessionExpiry
+          );
+        }
+        
+        let syncedCount = 0;
+        for (const hikDevice of hikDevices) {
+          const existingDevice = await storage.getDeviceByHikId(hikDevice.deviceId);
+          
+          if (existingDevice) {
+            await storage.updateDevice(existingDevice.id, {
+              name: hikDevice.deviceName,
+              serial: hikDevice.deviceSerial,
+              type: hikDevice.deviceType,
+              version: hikDevice.version,
+              status: hikDevice.status === 1 ? "online" : "offline",
+              lastSeen: new Date(),
+              branchId: createdBranch.id,
+            });
+          } else {
+            await storage.createDevice({
+              hikDeviceId: hikDevice.deviceId,
+              name: hikDevice.deviceName,
+              serial: hikDevice.deviceSerial,
+              type: hikDevice.deviceType,
+              version: hikDevice.version,
+              status: hikDevice.status === 1 ? "online" : "offline",
+              lastSeen: new Date(),
+              branchId: createdBranch.id,
+            });
+          }
+          syncedCount++;
+        }
+
+        await storage.updateLastSync(credentials.id);
+        
+        res.json({ branch: createdBranch, devicesSynced: syncedCount });
+      } else {
+        res.json({ branch: createdBranch, devicesSynced: 0 });
+      }
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to create branch with devices" });
+    }
+  });
+
+  app.post("/api/branches/:id/sync-devices", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { serialNumbers } = req.body;
+      
+      if (!serialNumbers || serialNumbers.length === 0) {
+        return res.status(400).json({ error: "Serial numbers are required" });
+      }
+
+      const branch = await storage.getBranch(id);
+      if (!branch) {
+        return res.status(404).json({ error: "Branch not found" });
+      }
+
+      const credentials = await storage.getHikConnectCredentials();
+      if (!credentials) {
+        return res.status(400).json({ error: "No credentials configured" });
+      }
+
+      const hikClient = new HikConnectClient(
+        credentials.username,
+        credentials.password,
+        credentials.sessionId || undefined,
+        credentials.featureCode || undefined,
+        credentials.customNo || undefined,
+        credentials.sessionExpiry || undefined
+      );
+
+      const hikDevices = await hikClient.getDevicesBySerialNumbers(serialNumbers);
+      
+      const sessionInfo = hikClient.getSessionInfo();
+      if (sessionInfo.sessionId) {
+        await storage.updateSession(
+          credentials.id,
+          sessionInfo.sessionId,
+          sessionInfo.featureCode,
+          sessionInfo.customNo,
+          sessionInfo.sessionExpiry
+        );
+      }
+      
+      let syncedCount = 0;
+      for (const hikDevice of hikDevices) {
+        const existingDevice = await storage.getDeviceByHikId(hikDevice.deviceId);
+        
+        if (existingDevice) {
+          await storage.updateDevice(existingDevice.id, {
+            name: hikDevice.deviceName,
+            serial: hikDevice.deviceSerial,
+            type: hikDevice.deviceType,
+            version: hikDevice.version,
+            status: hikDevice.status === 1 ? "online" : "offline",
+            lastSeen: new Date(),
+            branchId: id,
+          });
+        } else {
+          await storage.createDevice({
+            hikDeviceId: hikDevice.deviceId,
+            name: hikDevice.deviceName,
+            serial: hikDevice.deviceSerial,
+            type: hikDevice.deviceType,
+            version: hikDevice.version,
+            status: hikDevice.status === 1 ? "online" : "offline",
+            lastSeen: new Date(),
+            branchId: id,
+          });
+        }
+        syncedCount++;
+      }
+
+      await storage.updateLastSync(credentials.id);
+      
+      res.json({ success: true, devicesSynced: syncedCount });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to sync devices" });
     }
   });
 
@@ -215,25 +386,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hikClient = new HikConnectClient(
         credentials.username,
         credentials.password,
-        credentials.apiKey || undefined,
-        credentials.apiSecret || undefined
+        credentials.sessionId || undefined,
+        credentials.featureCode || undefined,
+        credentials.customNo || undefined,
+        credentials.sessionExpiry || undefined
       );
 
       const devices = await storage.getDevices();
+      const serialNumbers = devices.map(d => d.serial);
+      
+      if (serialNumbers.length === 0) {
+        return res.json({ success: true, checked: 0 });
+      }
+
+      const statusDevices = await hikClient.checkDeviceStatus(serialNumbers);
       let checkedCount = 0;
 
-      for (const device of devices) {
-        const status = await hikClient.checkDeviceStatus(device.hikDeviceId);
-        const newStatus = status === 1 ? "online" : "offline";
-        
-        if (device.status !== newStatus) {
-          await storage.updateDeviceStatus(device.id, newStatus);
-          await storage.createStatusHistory({
-            deviceId: device.id,
-            status: newStatus,
-          });
+      for (const statusDevice of statusDevices) {
+        const device = devices.find(d => d.serial === statusDevice.deviceSerial);
+        if (device) {
+          const newStatus = statusDevice.status === 1 ? "online" : "offline";
+          
+          if (device.status !== newStatus) {
+            await storage.updateDeviceStatus(device.id, newStatus);
+            await storage.createStatusHistory({
+              deviceId: device.id,
+              status: newStatus,
+            });
+          }
+          checkedCount++;
         }
-        checkedCount++;
       }
 
       res.json({ success: true, checked: checkedCount });

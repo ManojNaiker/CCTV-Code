@@ -17,6 +17,7 @@ export interface IStorage {
   getHikConnectCredentials(): Promise<HikConnectCredentials | undefined>;
   saveHikConnectCredentials(credentials: InsertHikConnectCredentials): Promise<HikConnectCredentials>;
   updateLastSync(id: string): Promise<void>;
+  updateSession(id: string, sessionId: string, featureCode?: string, customNo?: string, sessionExpiry?: Date): Promise<void>;
 
   // Branches
   getBranches(): Promise<Branch[]>;
@@ -69,6 +70,10 @@ export class MemStorage implements IStorage {
       password: credentials.password,
       apiKey: credentials.apiKey ?? null,
       apiSecret: credentials.apiSecret ?? null,
+      sessionId: credentials.sessionId ?? null,
+      featureCode: credentials.featureCode ?? null,
+      customNo: credentials.customNo ?? null,
+      sessionExpiry: credentials.sessionExpiry ?? null,
       createdAt: new Date(),
       lastSync: null,
     };
@@ -79,6 +84,15 @@ export class MemStorage implements IStorage {
   async updateLastSync(id: string): Promise<void> {
     if (this.hikCredentials && this.hikCredentials.id === id) {
       this.hikCredentials.lastSync = new Date();
+    }
+  }
+
+  async updateSession(id: string, sessionId: string, featureCode?: string, customNo?: string, sessionExpiry?: Date): Promise<void> {
+    if (this.hikCredentials && this.hikCredentials.id === id) {
+      this.hikCredentials.sessionId = sessionId;
+      this.hikCredentials.featureCode = featureCode || null;
+      this.hikCredentials.customNo = customNo || null;
+      this.hikCredentials.sessionExpiry = sessionExpiry || null;
     }
   }
 

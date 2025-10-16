@@ -56,6 +56,18 @@ export class DbStorage implements IStorage {
       .where(eq(hikConnectCredentials.id, id));
   }
 
+  async updateSession(id: string, sessionId: string, featureCode?: string, customNo?: string, sessionExpiry?: Date): Promise<void> {
+    await this.db
+      .update(hikConnectCredentials)
+      .set({
+        sessionId,
+        featureCode: featureCode || null,
+        customNo: customNo || null,
+        sessionExpiry: sessionExpiry || null,
+      })
+      .where(eq(hikConnectCredentials.id, id));
+  }
+
   // Branches
   async getBranches(): Promise<Branch[]> {
     return await this.db.select().from(branches);
