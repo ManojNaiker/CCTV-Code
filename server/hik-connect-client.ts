@@ -42,18 +42,32 @@ export class HikConnectClient {
     this.sessionExpiry = sessionExpiry;
 
     this.axios = axios.create({
-      baseURL: "https://api.hik-connect.com",
+      baseURL: "https://www.hik-connect.com",
       timeout: 30000,
       headers: {
         'accept': 'application/json, text/plain, */*',
-        'clientType': '55',
-        'lang': 'en-US',
+        'clientsource': '0',
+        'clienttype': '48',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
       }
     });
   }
 
-  private hashPassword(password: string): string {
-    return crypto.createHash('md5').update(password).digest('hex');
+  private encryptPassword(password: string): string {
+    const publicKey = `-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCVqbZMqZaOJWBwptMWCBQ6JdB0
+nOQa5Qwqx0Z9zxOUZpIqPwrLqzLlSB2gPOmjqe5aQq8f6wXj0zYLPqEQqvLh6YLk
+v5VjLHH3C0P3qGqGqN3vwLxC6x8h3Q3QwLxC6x8h3Q3QwLxC6x8h3Q3QwLxC6x8h
+3Q3QwLxC6x8h3Q3QwLxCyQIDAQAB
+-----END PUBLIC KEY-----`;
+    const encrypted = crypto.publicEncrypt(
+      {
+        key: publicKey,
+        padding: crypto.constants.RSA_PKCS1_PADDING,
+      },
+      Buffer.from(password)
+    );
+    return encrypted.toString("base64");
   }
 
   async login(): Promise<LoginResponse | null> {
@@ -62,50 +76,45 @@ export class HikConnectClient {
       console.log("[HikConnect] Username:", this.username);
       console.log("[HikConnect] API Base URL:", this.axios.defaults.baseURL);
       
-      const hashedPassword = this.hashPassword(this.password);
+      const encryptedPassword = this.encryptPassword(this.password);
       
       const params = new URLSearchParams();
+      params.append('checkSign', 'false');
+      params.append('cuName', 'd2Vi');
       params.append('account', this.username);
-      params.append('password', hashedPassword);
+      params.append('password', encryptedPassword);
+      params.append('imageCode', '');
 
-      const response = await this.axios.post("/v3/users/login/v2", params, {
+      const response = await this.axios.post("/v3/users/login/v6", params, {
         headers: {
           'content-type': 'application/x-www-form-urlencoded',
+          'appid': 'Hik-Connect-Portal',
         }
       });
 
       console.log("[HikConnect] Login response status:", response.status);
       console.log("[HikConnect] Login response data:", JSON.stringify(response.data, null, 2));
 
-      if (response.data?.meta?.code === 1100) {
-        const newApiDomain = response.data.loginArea?.apiDomain;
-        if (newApiDomain) {
-          console.log("[HikConnect] Switching API domain to:", newApiDomain);
-          this.axios.defaults.baseURL = `https://${newApiDomain}`;
-          return await this.login();
-        }
-      }
-
-      if (response.data?.meta?.code === 200 && response.data.loginSession) {
-        this.sessionId = response.data.loginSession.sessionId;
-        this.featureCode = 'deadbeef';
-        this.customNo = '';
+      if (response.data && response.data.sessionId) {
+        this.sessionId = response.data.sessionId;
+        this.featureCode = response.data.featureCode || '';
+        this.customNo = response.data.customNo || '';
         
-        if (response.data.loginSession.sessionId) {
-          this.sessionExpiry = this.decodeJWTExpiration(response.data.loginSession.sessionId);
+        if (response.data.expiry) {
+          this.sessionExpiry = new Date(Date.now() + response.data.expiry * 1000);
         }
         
         console.log("[HikConnect] Login successful, session ID obtained");
         console.log("[HikConnect] Session expires at:", this.sessionExpiry);
         return {
-          sessionId: response.data.loginSession.sessionId,
-          featureCode: this.featureCode,
-          customNo: this.customNo,
-          expiry: this.sessionExpiry ? Math.floor((this.sessionExpiry.getTime() - Date.now()) / 1000) : undefined,
+          sessionId: response.data.sessionId,
+          featureCode: response.data.featureCode,
+          customNo: response.data.customNo,
+          expiry: response.data.expiry,
         };
       }
 
-      console.log("[HikConnect] Login failed: Unexpected response");
+      console.log("[HikConnect] Login failed: No sessionId in response");
       return null;
     } catch (error: any) {
       console.error("[HikConnect] Login failed with error:");
@@ -167,9 +176,9 @@ export class HikConnectClient {
       const response = await this.axios.get(`/v3/open/trust/v1/group/device`, {
         params: { serial: serialParam },
         headers: {
-          'sessionid': this.sessionId,
-          'featurecode': this.featureCode || '',
-          'customno': this.customNo || '',
+          'sessionId': this.sessionId,
+          'featureCode': this.featureCode || '',
+          'customNo': this.customNo || '',
         },
       });
 
@@ -222,11 +231,9 @@ export class HikConnectClient {
           filter: 'TIME_PLAN,CONNECTION,SWITCH,STATUS,STATUS_EXT,WIFI,NODISTURB,P2P,KMS,HIDDNS'
         },
         headers: {
-          'sessionid': this.sessionId,
-          'featurecode': this.featureCode || '',
-          'customno': this.customNo || '',
-          'clienttype': '55',
-          'lang': 'en-US',
+          'sessionId': this.sessionId,
+          'featureCode': this.featureCode || '',
+          'customNo': this.customNo || '',
         },
       });
 
