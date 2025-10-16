@@ -41,10 +41,15 @@ Preferred communication style: Simple, everyday language.
 
 **API Design**: RESTful endpoints with Express route handlers
 - Credential management (`/api/hik-connect/credentials`)
-- Device sync and status checking (`/api/hik-connect/sync`, `/api/devices/check-status`)
+- **Serial-number-based device sync**:
+  - `POST /api/branches/create-with-devices` - Create branch and sync devices by serial numbers
+  - `POST /api/branches/:id/sync-devices` - Sync devices to existing branch by serial numbers
+- Device status checking (`/api/devices/check-status`)
 - Branch management (`/api/branches`)
 - Device mapping (`/api/devices/:id/branch`)
 - Notification settings (`/api/notification-settings`)
+
+**Important Note**: The Hik-Connect API requires device serial numbers to fetch device information. The legacy `/api/hik-connect/sync` endpoint will return an error directing users to the new serial-number-based endpoints.
 
 **Background Jobs**: Node-cron scheduler running every 15 minutes to check device status
 
@@ -77,10 +82,11 @@ Preferred communication style: Simple, everyday language.
 ### External Dependencies
 
 **Third-Party Services**:
-- **Hik-Connect API** (`https://iind-team.hikcentralconnect.com`): Primary integration for device data retrieval and status monitoring
-  - Authentication via username/password
-  - Optional API key/secret for enhanced security
-  - HMAC-SHA256 signature generation for authenticated requests
+- **Hik-Connect API** (`https://www.hik-connect.com`): Primary integration for device data retrieval and status monitoring
+  - Authentication via username/password with RSA encryption
+  - Session-based authentication with sessionId, featureCode, and customNo
+  - Serial-number-based device retrieval (API requires device serial numbers to fetch device information)
+  - Automatic session management and renewal
 
 **Database**:
 - **PostgreSQL** (via Neon serverless): Primary data store
