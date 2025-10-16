@@ -1,0 +1,187 @@
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from openpyxl import load_workbook
+from webdriver_manager.chrome import ChromeDriverManager
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import smtplib
+import time
+
+# Account credentials and associated state
+accounts = [
+
+    {"username": "light_rajasthan", "password": "L!ght##2023CCTV$2023##", "state": "Rajasthan"},
+]
+
+# Chrome Options
+chrome_options = Options()
+chrome_options.add_argument('--ignore-certificate-errors')
+chrome_options.add_argument('--disable-web-security')
+chrome_options.add_argument('--no-sandbox')
+chrome_options.add_argument('--disable-dev-shm-usage')
+chrome_options.add_argument('--start-maximized')
+# chrome_options.add_argument('--headless')  # Enable this for background run
+
+def click_load_more(driver, username):
+    while True:
+        try:
+            load_more = WebDriverWait(driver, 5).until(
+                EC.element_to_be_clickable((By.XPATH, "//span[text()='Load More']/.."))
+            )
+            driver.execute_script("arguments[0].scrollIntoView(true);", load_more)
+            time.sleep(1)
+            load_more.click()
+            print(f"🔄 {username}: Clicked 'Load More'")
+            time.sleep(2)
+        except:
+            print(f"ℹ️ {username}: No more 'Load More' button.")
+            break
+
+def extract_account_data(username, password, state):
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    driver.get("https://iindia.hik-connect.com/views/login/index.html#/login")
+    
+    try:
+        WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.ID, "basic_account")))
+        driver.find_element(By.ID, "basic_account").send_keys(username)
+        time.sleep(1)
+        driver.find_element(By.ID, "basic_password").send_keys(password)
+        driver.find_element(By.ID, "basic_password").send_keys(Keys.RETURN)
+    except Exception as e:
+        print(f"❌ {username}: Login failed: {e}")
+        driver.quit()
+        return []
+
+    time.sleep(5)
+
+    # Redirect for light_rajasthan
+    if username == "light_rajasthan":
+        driver.get("https://iindia.hik-connect.com/views/login/index.html#/common/personal/deviceManagement")
+        print(f"🔗 {username}: Redirected to deviceManagement page")
+        time.sleep(5)
+
+    # Close any popups
+    try:
+        close_buttons = driver.find_elements(By.CLASS_NAME, "el-dialog__headerbtn")
+        if close_buttons:
+            driver.execute_script("arguments[0].click();", close_buttons[-1])
+            print(f"✅ {username}: Closed popup.")
+    except Exception as e:
+        print(f"⚠️ {username}: No popup or error closing popup: {e}")
+
+    # Load all rows
+    click_load_more(driver, username)
+
+    # Extract device data
+    data = []
+    rows = driver.find_elements(By.XPATH, "//div[@class='el-table__body-wrapper']//table//tbody/tr")
+    print(f"📊 {username}: Found {len(rows)} devices.")
+    for row in rows:
+        cols = row.find_elements(By.TAG_NAME, "td")
+        if len(cols) >= 5:
+            alias = cols[0].text.strip()
+            status = cols[4].text.strip()
+            data.append((state, alias, status))
+            print(f"✅ {username}: {alias} - {status}")
+
+    driver.quit()
+    return data
+
+# --- MAIN EXECUTION ---
+
+all_data = []
+for account in accounts:
+    print(f"\n🔐 Logging into {account['username']}")
+    data = extract_account_data(account["username"], account["password"], account["state"])
+    all_data.extend(data)
+
+# Load Excel file
+file_path = r"D:\OneDrive - Light Microfinance Pvt Ltd\List\Python\CCTV Report\CCTV_Daily_Status.xlsx"
+wb = load_workbook(file_path)
+ws = wb.active
+
+# Clear previous data from columns C, D, E
+for row in ws.iter_rows(min_row=2, min_col=3, max_col=5):
+    for cell in row:
+        cell.value = None
+
+# Write new data
+for i, (state, branch, status) in enumerate(all_data, start=2):
+    ws[f"C{i}"] = branch
+    ws[f"D{i}"] = status
+    ws[f"E{i}"] = state
+
+wb.save(file_path)
+print("✅ Excel updated.")
+
+# Collect offline branches
+offline_rows = [
+    (ws[f"E{i}"].value, ws[f"C{i}"].value, ws[f"D{i}"].value)
+    for i in range(2, ws.max_row + 1)
+    if ws[f"D{i}"].value and ws[f"D{i}"].value.lower() == "offline"
+]
+
+if not offline_rows:
+    print("✅ No offline branches. No email sent.")
+    exit()
+
+# Email setup
+try:
+    email_sheet = wb["email"]
+    # Collect all non-empty email IDs from column A (To) and B (CC) starting from row 2
+    to_emails = [cell.value for cell in email_sheet["A"][1:] if cell.value]
+    cc_emails = [cell.value for cell in email_sheet["B"][1:] if cell.value]
+    if not to_emails:
+        print("❌ No valid 'To' email IDs found.")
+        exit()
+except:
+    print("❌ Email sheet not found or email IDs missing.")
+    exit()
+
+# Email content
+table_rows = "".join([f"<tr><td>{s}</td><td>{b}</td><td>{st}</td></tr>" for s, b, st in offline_rows])
+email_body = f"""
+<p>Dear Branch Team,</p>
+<p>Please find below the CCTV status of your branches; kindly check the internet cable or contact the IT team.</p>
+<p>कृपया अपनी शाखाओं की सीसीटीवी स्थिति देखें; कृपया अपना इंटरनेट केबल जांचें या IT टीम से संपर्क करें।</p>
+<p>કૃપા કરીને તમારી શાખાઓની સીસીટીવી સ્થિતિ જુઓ અને જરૂર પડે તો IT ટીમનો સંપર્ક કરો.</p>
+
+<p>Dear RM's,</p>
+<p>The CCTV cameras at the following branches are offline. Please coordinate with your BMs to resolve the issue soon.</p>
+<p>निम्नलिखित शाखाओं के सीसीटीवी कैमरे ऑफ़लाइन दिख रहे हैं; कृपया समस्या को यथाशीघ्र हल करने के लिए अपनी शाखा के बीएम के साथ समन्वय करें। </p>
+<p>નીચેની શાખાઓ પરના સીસીટીવી કેમેરા ઑફલાઇન તરીકે દેખાઈ રહ્યા છે; શક્ય તેટલી વહેલી તકે સમસ્યાનો ઉકેલ લાવવા માટે કૃપા કરીને તમારી શાખા BM સાથે સંકલન કરો</p>
+
+<table border="1" cellpadding="5" cellspacing="0">
+    <tr><th>State</th><th>Branch Name</th><th>Status</th></tr>
+    {table_rows}
+</table>
+
+<p>Thanks & Regards,<br>IT Team</p>
+"""
+
+# Compose and send email
+msg = MIMEMultipart()
+msg["From"] = "it@lightfinance.com"
+msg["To"] = ", ".join(to_emails)  # Join multiple To emails with commas
+msg["Cc"] = ", ".join(cc_emails)  # Join multiple CC emails with commas
+msg["Subject"] = "Branches CCTV Offline Status"
+msg["X-Priority"] = "1"  # High priority
+msg["Importance"] = "High"  # High importance
+msg.attach(MIMEText(email_body, "html"))
+
+smtp_server = "mail.lightfinance.com"
+smtp_user = "it@lightfinance.com"
+smtp_pass = "1212"
+
+with smtplib.SMTP(smtp_server, 587) as server:
+    server.starttls()
+    server.login(smtp_user, smtp_pass)
+    # Send email to all To and CC recipients
+    server.sendmail(smtp_user, to_emails + cc_emails, msg.as_string())
+
+print("📧 High-priority email sent successfully to multiple recipients.")
